@@ -1,2 +1,2 @@
 # q50server
-Q50 watch server
+Q50 server
