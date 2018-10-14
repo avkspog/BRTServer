@@ -1,2 +1,2 @@
-# q50server
-Q50 server
+# BRTS server
+BRTS server
