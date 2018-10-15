@@ -32,7 +32,7 @@ func (c *Client) Listen() {
 		c.waitGroup.Done()
 	}()
 
-	reader := bufio.NewReader(c.Conn)
+	scanner := bufio.NewScanner(c.Conn)
 
 	type receiveData struct {
 		data *[]byte
@@ -43,8 +43,18 @@ func (c *Client) Listen() {
 		receiveDataCh := make(chan receiveData, 1)
 
 		go func() {
-			data, err := reader.ReadBytes('\r')
-			receiveDataCh <- receiveData{&data, err}
+			ok := scanner.Scan()
+			if !ok {
+				if err := scanner.Err(); err != nil {
+					var b []byte
+					receiveDataCh <- receiveData{&b, err}
+					return
+				}
+				leaving <- c
+				return
+			}
+			b := []byte(scanner.Text())
+			receiveDataCh <- receiveData{&b, nil}
 		}()
 
 		select {

@@ -1,7 +1,8 @@
 package main
 
 import (
-	"brts/tcp"
+	"BRTServer/tcp"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -20,11 +21,11 @@ func main() {
 	server = tcp.NewServer(host + ":" + port)
 
 	server.OnServerStarted(func(addr *net.TCPAddr) {
-		log.Printf("BRTS server started on address: %v", addr.String())
+		log.Printf("KRTS server started on address: %v", addr.String())
 	})
 
 	server.OnServerStopped(func() {
-		log.Println("BRTS server stopped")
+		log.Println("KRTS server stopped")
 	})
 
 	server.OnNewConnection(func(c *tcp.Client) {
@@ -33,10 +34,13 @@ func main() {
 
 	server.OnMessageReceive(func(c *tcp.Client, data *[]byte) {
 		n := len(*data)
-		message := make([]byte, n)
-		copy(message, *data)
-		mm := string(message)
-		log.Printf("%v message: %v", c.Conn.RemoteAddr(), mm)
+		fmt.Println("message len = ", n)
+		if n > 0 {
+			message := make([]byte, n)
+			copy(message, *data)
+			mm := string(message)
+			log.Printf("%v message: %v", c.Conn.RemoteAddr(), mm)
+		}
 	})
 
 	server.OnConnectionLost(func(c *tcp.Client) {
