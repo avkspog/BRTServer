@@ -2,7 +2,7 @@ package tcp
 
 import (
 	"bufio"
-	"log"
+	"fmt"
 	"net"
 )
 
@@ -29,7 +29,7 @@ func NewClient(conn net.Conn, srv *Server) *Client {
 func (c *Client) Listen() {
 	defer func() {
 		c.server.waitGroup.Done()
-		c.server.leaving <- c
+		c.server.leavingCh <- c
 		c.Conn.Close()
 	}()
 
@@ -38,12 +38,13 @@ func (c *Client) Listen() {
 		scanned := scanner.Scan()
 		if !scanned {
 			if err := scanner.Err(); err != nil {
-				log.Println(err)
+				fmt.Printf("%v", err)
 				return
 			}
 			break
 		}
-		c.server.messages <- &receiveMessage{client: c, data: scanner.Bytes()}
+		b := scanner.Bytes()
+		c.server.messagesCh <- &receiveMessage{client: c, data: b}
 	}
 }
 

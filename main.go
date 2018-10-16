@@ -1,7 +1,7 @@
 package main
 
 import (
-	"BRTServer/tcp"
+	"brts/tcp"
 	"log"
 	"net"
 	"os"
@@ -20,11 +20,11 @@ func main() {
 	server = tcp.NewServer(host + ":" + port)
 
 	server.OnServerStarted(func(addr *net.TCPAddr) {
-		log.Printf("KRTS server started on address: %v", addr.String())
+		log.Printf("BRTS server started on address: %v", addr.String())
 	})
 
 	server.OnServerStopped(func() {
-		log.Println("KRTS server stopped")
+		log.Println("BRTS server stopped")
 	})
 
 	server.OnNewConnection(func(c *tcp.Client) {

@@ -10,15 +10,15 @@ import (
 )
 
 type Server struct {
-	address   string
-	listener  *net.TCPListener
-	waitGroup *sync.WaitGroup
-	signalCh  chan os.Signal
-	mu        *sync.Mutex
-	clients   map[*Client]struct{}
-	entering  chan *Client
-	leaving   chan *Client
-	messages  chan *receiveMessage
+	address    string
+	listener   *net.TCPListener
+	waitGroup  *sync.WaitGroup
+	signalCh   chan os.Signal
+	mu         *sync.Mutex
+	clients    map[*Client]struct{}
+	enteringCh chan *Client
+	leavingCh  chan *Client
+	messagesCh chan *receiveMessage
 	*event
 }
 
@@ -40,15 +40,15 @@ func NewServer(address string) *Server {
 	}
 
 	server := &Server{
-		address:   address,
-		waitGroup: &sync.WaitGroup{},
-		signalCh:  make(chan os.Signal), //TODO закрывать все каналы
-		mu:        &sync.Mutex{},
-		clients:   make(map[*Client]struct{}),
-		entering:  make(chan *Client),
-		leaving:   make(chan *Client),
-		messages:  make(chan *receiveMessage),
-		event:     event,
+		address:    address,
+		waitGroup:  &sync.WaitGroup{},
+		signalCh:   make(chan os.Signal),
+		mu:         &sync.Mutex{},
+		clients:    make(map[*Client]struct{}),
+		enteringCh: make(chan *Client),
+		leavingCh:  make(chan *Client),
+		messagesCh: make(chan *receiveMessage),
+		event:      event,
 	}
 
 	return server
@@ -92,7 +92,7 @@ func (s *Server) Listen() error {
 				continue
 			}
 			client := NewClient(accept.conn, s)
-			s.entering <- client
+			s.enteringCh <- client
 
 		case <-s.signalCh:
 			log.Println("shutting down server...")
@@ -108,17 +108,17 @@ func (s *Server) Listen() error {
 func (s *Server) broadcaster(doneCh chan bool) {
 	for {
 		select {
-		case client := <-s.entering:
+		case client := <-s.enteringCh:
 			s.addClient(client)
 			s.waitGroup.Add(1)
 			go client.Listen()
 			go s.onNewConnection(client)
 
-		case client := <-s.leaving:
+		case client := <-s.leavingCh:
 			s.removeClient(client)
 			go s.onConnectionLost(client)
 
-		case msg := <-s.messages:
+		case msg := <-s.messagesCh:
 			go s.onMessageReceive(msg.client, &msg.data)
 
 		case <-doneCh:
