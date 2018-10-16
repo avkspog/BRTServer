@@ -1,2 +1,2 @@
 # BRTS
-Real time telemtry server
+Real time telemetry server
