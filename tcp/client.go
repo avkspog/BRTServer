@@ -2,74 +2,51 @@ package tcp
 
 import (
 	"bufio"
+	"log"
 	"net"
-	"sync"
 )
 
 type Client struct {
-	Conn      net.Conn
-	waitGroup *sync.WaitGroup
-	closeCh   chan struct{}
+	Conn    net.Conn
+	server  *Server
+	closeCh chan struct{}
 }
 
 type receiveMessage struct {
 	client *Client
-	data   *[]byte
+	data   []byte
 }
 
-func NewClient(conn net.Conn, wg *sync.WaitGroup) *Client {
+func NewClient(conn net.Conn, srv *Server) *Client {
 	client := &Client{
-		Conn:      conn,
-		waitGroup: wg,
-		closeCh:   make(chan struct{}, 1),
+		Conn:    conn,
+		server:  srv,
+		closeCh: make(chan struct{}, 1),
 	}
 	return client
 }
 
 func (c *Client) Listen() {
 	defer func() {
+		c.server.waitGroup.Done()
+		c.server.leaving <- c
 		c.Conn.Close()
-		c.waitGroup.Done()
 	}()
 
 	scanner := bufio.NewScanner(c.Conn)
-
-	type receiveData struct {
-		data *[]byte
-		err  error
-	}
-
 	for {
-		receiveDataCh := make(chan receiveData, 1)
-
-		go func() {
-			ok := scanner.Scan()
-			if !ok {
-				if err := scanner.Err(); err != nil {
-					var b []byte
-					receiveDataCh <- receiveData{&b, err}
-					return
-				}
-				leaving <- c
+		scanned := scanner.Scan()
+		if !scanned {
+			if err := scanner.Err(); err != nil {
+				log.Println(err)
 				return
 			}
-			b := []byte(scanner.Text())
-			receiveDataCh <- receiveData{&b, nil}
-		}()
-
-		select {
-		case m := <-receiveDataCh:
-			if m.err != nil {
-				leaving <- c
-				return
-			}
-			messages <- &receiveMessage{client: c, data: m.data}
-		case <-c.closeCh:
-			return
+			break
 		}
+		c.server.messages <- &receiveMessage{client: c, data: scanner.Bytes()}
 	}
 }
 
 func (c *Client) Close() {
-	c.closeCh <- struct{}{}
+	c.Conn.Close()
 }

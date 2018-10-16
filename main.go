@@ -2,7 +2,6 @@ package main
 
 import (
 	"BRTServer/tcp"
-	"fmt"
 	"log"
 	"net"
 	"os"
@@ -34,12 +33,12 @@ func main() {
 
 	server.OnMessageReceive(func(c *tcp.Client, data *[]byte) {
 		n := len(*data)
-		fmt.Println("message len = ", n)
-		if n > 0 {
-			message := make([]byte, n)
-			copy(message, *data)
-			mm := string(message)
-			log.Printf("%v message: %v", c.Conn.RemoteAddr(), mm)
+		message := make([]byte, n)
+		copy(message, *data)
+		mm := string(message)
+		log.Printf("%v message: %v", c.Conn.RemoteAddr(), mm)
+		if mm == "stop" {
+			c.Close()
 		}
 	})
 

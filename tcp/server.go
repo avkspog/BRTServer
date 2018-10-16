@@ -16,6 +16,9 @@ type Server struct {
 	signalCh  chan os.Signal
 	mu        *sync.Mutex
 	clients   map[*Client]struct{}
+	entering  chan *Client
+	leaving   chan *Client
+	messages  chan *receiveMessage
 	*event
 }
 
@@ -26,12 +29,6 @@ type event struct {
 	onConnectionLost func(c *Client)
 	onMessageReceive func(c *Client, data *[]byte)
 }
-
-var (
-	entering = make(chan *Client)
-	leaving  = make(chan *Client)
-	messages = make(chan *receiveMessage)
-)
 
 func NewServer(address string) *Server {
 	event := &event{
@@ -45,9 +42,12 @@ func NewServer(address string) *Server {
 	server := &Server{
 		address:   address,
 		waitGroup: &sync.WaitGroup{},
-		signalCh:  make(chan os.Signal),
+		signalCh:  make(chan os.Signal), //TODO закрывать все каналы
 		mu:        &sync.Mutex{},
 		clients:   make(map[*Client]struct{}),
+		entering:  make(chan *Client),
+		leaving:   make(chan *Client),
+		messages:  make(chan *receiveMessage),
 		event:     event,
 	}
 
@@ -61,7 +61,8 @@ func (s *Server) Listen() error {
 		return err
 	}
 
-	go s.broadcaster()
+	doneCh := make(chan bool)
+	go s.broadcaster(doneCh)
 
 	defer func() {
 		listener.Close()
@@ -77,8 +78,8 @@ func (s *Server) Listen() error {
 		err  error
 	}
 
+	c := make(chan accepted, 1)
 	for {
-		c := make(chan accepted, 1)
 		go func() {
 			conn, err := listener.Accept()
 			c <- accepted{conn, err}
@@ -90,14 +91,12 @@ func (s *Server) Listen() error {
 				log.Printf("error accepting connection %v", err)
 				continue
 			}
-
-			client := NewClient(accept.conn, s.waitGroup)
-			entering <- client
-			s.waitGroup.Add(1)
-			go client.Listen()
+			client := NewClient(accept.conn, s)
+			s.entering <- client
 
 		case <-s.signalCh:
 			log.Println("shutting down server...")
+			doneCh <- true
 			s.listener.Close()
 			go s.closeConnections()
 			s.waitGroup.Wait()
@@ -106,17 +105,24 @@ func (s *Server) Listen() error {
 	}
 }
 
-func (s *Server) broadcaster() {
+func (s *Server) broadcaster(doneCh chan bool) {
 	for {
 		select {
-		case client := <-entering:
+		case client := <-s.entering:
 			s.addClient(client)
+			s.waitGroup.Add(1)
+			go client.Listen()
 			go s.onNewConnection(client)
-		case client := <-leaving:
+
+		case client := <-s.leaving:
 			s.removeClient(client)
 			go s.onConnectionLost(client)
-		case msg := <-messages:
-			go s.onMessageReceive(msg.client, msg.data)
+
+		case msg := <-s.messages:
+			go s.onMessageReceive(msg.client, &msg.data)
+
+		case <-doneCh:
+			return
 		}
 	}
 }
@@ -145,8 +151,8 @@ func (s *Server) removeClient(c *Client) {
 	delete(s.clients, c)
 }
 
-func (s *Server) Clients() *map[*Client]struct{} {
-	return &s.clients
+func (s *Server) Clients() map[*Client]struct{} {
+	return s.clients
 }
 
 func (s *Server) OnServerStopped(callback func()) {
