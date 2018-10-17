@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 )
 
 var server *tcp.Server
@@ -18,6 +19,7 @@ func main() {
 		port = os.Args[2]
 	}
 	server = tcp.NewServer(host + ":" + port)
+	server.IdleTimeout = 15 * time.Second
 
 	server.OnServerStarted(func(addr *net.TCPAddr) {
 		log.Printf("BRTS server started on address: %v", addr.String())

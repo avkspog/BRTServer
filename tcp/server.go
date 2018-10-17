@@ -7,18 +7,22 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type Server struct {
+	IdleTimeout time.Duration
+
 	address    string
 	listener   *net.TCPListener
 	waitGroup  *sync.WaitGroup
-	signalCh   chan os.Signal
 	mu         *sync.Mutex
 	clients    map[*Client]struct{}
+	signalCh   chan os.Signal
 	enteringCh chan *Client
 	leavingCh  chan *Client
 	messagesCh chan *receiveMessage
+	shutdownCh chan struct{}
 	*event
 }
 
@@ -40,17 +44,19 @@ func NewServer(address string) *Server {
 	}
 
 	server := &Server{
+		IdleTimeout: 10 * time.Minute,
+
 		address:    address,
 		waitGroup:  &sync.WaitGroup{},
-		signalCh:   make(chan os.Signal),
 		mu:         &sync.Mutex{},
 		clients:    make(map[*Client]struct{}),
+		signalCh:   make(chan os.Signal),
 		enteringCh: make(chan *Client),
 		leavingCh:  make(chan *Client),
 		messagesCh: make(chan *receiveMessage),
+		shutdownCh: make(chan struct{}),
 		event:      event,
 	}
-
 	return server
 }
 
@@ -61,13 +67,13 @@ func (s *Server) Listen() error {
 		return err
 	}
 
-	doneCh := make(chan bool)
-	go s.broadcaster(doneCh)
-
 	defer func() {
 		listener.Close()
+		s.shutdownCh <- struct{}{}
 		s.onServerStopped()
 	}()
+
+	s.broadcaster()
 
 	signal.Notify(s.signalCh, os.Interrupt, os.Kill, syscall.SIGTERM, syscall.SIGINT)
 
@@ -96,42 +102,46 @@ func (s *Server) Listen() error {
 
 		case <-s.signalCh:
 			log.Println("shutting down server...")
-			doneCh <- true
 			s.listener.Close()
-			go s.closeConnections()
+			s.closeConnections()
 			s.waitGroup.Wait()
 			return nil
 		}
 	}
 }
 
-func (s *Server) broadcaster(doneCh chan bool) {
-	for {
-		select {
-		case client := <-s.enteringCh:
-			s.addClient(client)
-			s.waitGroup.Add(1)
-			go client.Listen()
-			go s.onNewConnection(client)
+func (s *Server) broadcaster() {
+	go func() {
+		for {
+			select {
+			case client := <-s.enteringCh:
+				s.waitGroup.Add(1)
+				go client.Listen()
 
-		case client := <-s.leavingCh:
-			s.removeClient(client)
-			go s.onConnectionLost(client)
+				s.addClient(client)
+				go s.onNewConnection(client)
 
-		case msg := <-s.messagesCh:
-			go s.onMessageReceive(msg.client, &msg.data)
+			case client := <-s.leavingCh:
+				s.removeClient(client)
+				go s.onConnectionLost(client)
 
-		case <-doneCh:
-			return
+			case msg := <-s.messagesCh:
+				go s.onMessageReceive(msg.client, &msg.data)
+
+			case <-s.shutdownCh:
+				return
+			}
 		}
-	}
+	}()
 }
 
-func (s *Server) StopGraceful() {
+func (s *Server) Shutdown() {
 	s.signalCh <- syscall.SIGINT
 }
 
 func (s *Server) closeConnections() {
+	defer s.mu.Unlock()
+	s.mu.Lock()
 	for c := range s.clients {
 		if c != nil {
 			c.Close()
