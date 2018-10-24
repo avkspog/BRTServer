@@ -120,7 +120,6 @@ func (s *Server) listen(c *Client) {
 		s.waitGroup.Done()
 		s.removeClient(c)
 		s.onConnectionLost(c)
-		fmt.Println("debug: Client.Listen() gorutine closed")
 	}()
 
 	c.updateDeadline()
