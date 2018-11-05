@@ -28,7 +28,7 @@ type Server struct {
 	onServerStopped  func()
 	onNewConnection  func(c *Client)
 	onConnectionLost func(c *Client)
-	onMessageReceive func(c *Client, data []byte)
+	onMessageReceive func(c *Client, data *[]byte)
 }
 
 type Client struct {
@@ -57,7 +57,7 @@ func Create(address string) *Server {
 		onServerStopped:  func() {},
 		onNewConnection:  func(c *Client) {},
 		onConnectionLost: func(c *Client) {},
-		onMessageReceive: func(c *Client, data []byte) {},
+		onMessageReceive: func(c *Client, data *[]byte) {},
 	}
 	return server
 }
@@ -154,7 +154,7 @@ func (s *Server) listen(c *Client) {
 		select {
 		case rcv := <-scrCh:
 			timeout = time.After(c.idleTimeout)
-			s.onMessageReceive(c, *rcv.data)
+			s.onMessageReceive(c, rcv.data)
 
 		case <-timeout:
 			log.Printf("timeout: %v\n", c.Conn.RemoteAddr())
@@ -236,6 +236,6 @@ func (s *Server) OnConnectionLost(callback func(c *Client)) {
 	s.onConnectionLost = callback
 }
 
-func (s *Server) OnMessageReceive(callback func(c *Client, data []byte)) {
+func (s *Server) OnMessageReceive(callback func(c *Client, data *[]byte)) {
 	s.onMessageReceive = callback
 }

@@ -30,8 +30,8 @@ func main() {
 		log.Printf("accepted connection from: %v", c.Conn.RemoteAddr())
 	})
 
-	server.OnMessageReceive(func(c *brts.Client, data []byte) {
-		mm := string(data)
+	server.OnMessageReceive(func(c *brts.Client, data *[]byte) {
+		mm := string(*data)
 		log.Printf("%v message: %v", c.Conn.RemoteAddr(), mm)
 	})
 
