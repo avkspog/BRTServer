@@ -13,13 +13,12 @@ import (
 )
 
 type Server struct {
-	IdleTimeout time.Duration
-
-	address   string
-	waitGroup *sync.WaitGroup
-	mu        *sync.Mutex
-	clients   map[*Client]struct{}
-	signalCh  chan os.Signal
+	idleTimeout time.Duration
+	address     string
+	waitGroup   *sync.WaitGroup
+	mu          *sync.Mutex
+	clients     map[*Client]struct{}
+	signalCh    chan os.Signal
 
 	onServerStarted  func(addr *net.TCPAddr)
 	onServerStopped  func()
@@ -42,13 +41,12 @@ type accepted struct {
 
 func Create(address string) *Server {
 	server := &Server{
-		IdleTimeout: 10 * time.Minute,
-
-		address:   address,
-		waitGroup: &sync.WaitGroup{},
-		mu:        &sync.Mutex{},
-		clients:   make(map[*Client]struct{}),
-		signalCh:  make(chan os.Signal),
+		idleTimeout: 10 * time.Minute,
+		address:     address,
+		waitGroup:   &sync.WaitGroup{},
+		mu:          &sync.Mutex{},
+		clients:     make(map[*Client]struct{}),
+		signalCh:    make(chan os.Signal),
 
 		onServerStarted:  func(addr *net.TCPAddr) {},
 		onServerStopped:  func() {},
@@ -97,7 +95,7 @@ func (s *Server) Start() error {
 				log.Printf("error accepting connection %v", err)
 				continue
 			}
-			client := newClient(accept.conn, s.IdleTimeout)
+			client := newClient(accept.conn, s.idleTimeout)
 			s.waitGroup.Add(1)
 			go s.listen(client)
 
@@ -201,6 +199,10 @@ func (c *Client) Read(p []byte) (n int, err error) {
 func (c *Client) Close() (err error) {
 	err = c.Conn.Close()
 	return
+}
+
+func (s *Server) SetTimeout(timeout time.Duration) {
+	s.idleTimeout = timeout
 }
 
 func (s *Server) Clients() map[*Client]struct{} {

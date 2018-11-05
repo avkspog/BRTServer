@@ -14,15 +14,11 @@ func main() {
 	host := "localhost"
 	port := "5326"
 
-	if len(os.Args[1:]) == 2 {
-		host = os.Args[1]
-		port = os.Args[2]
-	}
 	server = brts.Create(host + ":" + port)
-	server.IdleTimeout = 15 * time.Second
+	server.SetTimeout(15 * time.Second)
 
 	server.OnServerStarted(func(addr *net.TCPAddr) {
-		log.Printf("BRTS server started on address: %v", host+":"+port)
+		log.Printf("BRTS server started on address: %v", addr.String())
 	})
 
 	server.OnServerStopped(func() {
