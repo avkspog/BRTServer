@@ -12,6 +12,8 @@ import (
 	"time"
 )
 
+const defaultTimeout time.Duration = 10 * time.Minute
+
 type Server struct {
 	idleTimeout time.Duration
 	address     string
@@ -41,7 +43,7 @@ type accepted struct {
 
 func Create(address string) *Server {
 	server := &Server{
-		idleTimeout: 10 * time.Minute,
+		idleTimeout: defaultTimeout,
 		address:     address,
 		waitGroup:   &sync.WaitGroup{},
 		mu:          &sync.Mutex{},
