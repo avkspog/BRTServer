@@ -3,6 +3,7 @@ package brts
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
@@ -21,6 +22,7 @@ type Server struct {
 	mu          *sync.Mutex
 	clients     map[*Client]struct{}
 	signalCh    chan os.Signal
+	dataDelim   byte
 
 	onServerStarted  func(addr *net.TCPAddr)
 	onServerStopped  func()
@@ -49,6 +51,7 @@ func Create(address string) *Server {
 		mu:          &sync.Mutex{},
 		clients:     make(map[*Client]struct{}),
 		signalCh:    make(chan os.Signal),
+		dataDelim:   '\r',
 
 		onServerStarted:  func(addr *net.TCPAddr) {},
 		onServerStopped:  func() {},
@@ -124,32 +127,34 @@ func (s *Server) listen(c *Client) {
 
 	c.updateDeadline()
 
+	type receiveData struct {
+		data *[]byte
+		err  error
+	}
+
 	timeout := time.After(c.idleTimeout)
-	scrCh := make(chan bool)
-	scanner := bufio.NewScanner(c)
+	scrCh := make(chan receiveData)
+	reader := bufio.NewReader(c)
 
 	for {
-		go func(scanCh chan bool) {
-			result := scanner.Scan()
-			if !result {
+		go func(scanCh chan receiveData) {
+			data, err := reader.ReadBytes(s.dataDelim)
+			if err != nil {
+				if err == io.EOF {
+					c.closeCh <- struct{}{}
+					return
+				}
+				fmt.Printf("Error %s: %v\n", c.Conn.RemoteAddr(), err)
 				c.closeCh <- struct{}{}
 			} else {
-				scanCh <- result
+				scanCh <- receiveData{&data, err}
 			}
 		}(scrCh)
 
 		select {
-		case scanned := <-scrCh:
-			if !scanned {
-				if err := scanner.Err(); err != nil {
-					fmt.Printf("%v\n", err)
-					return
-				}
-				break
-			}
-			b := scanner.Bytes()
+		case rcv := <-scrCh:
 			timeout = time.After(c.idleTimeout)
-			s.onMessageReceive(c, b)
+			s.onMessageReceive(c, *rcv.data)
 
 		case <-timeout:
 			log.Printf("timeout: %v\n", c.Conn.RemoteAddr())
@@ -171,8 +176,8 @@ func (s *Server) Shutdown() {
 }
 
 func (s *Server) closeConnections() {
-	defer s.mu.Unlock()
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	for c := range s.clients {
 		if c != nil {
 			c.Close()
@@ -181,14 +186,14 @@ func (s *Server) closeConnections() {
 }
 
 func (s *Server) addClient(c *Client) {
-	defer s.mu.Unlock()
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.clients[c] = struct{}{}
 }
 
 func (s *Server) removeClient(c *Client) {
-	defer s.mu.Unlock()
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	delete(s.clients, c)
 }
 
@@ -205,6 +210,10 @@ func (c *Client) Close() (err error) {
 
 func (s *Server) SetTimeout(timeout time.Duration) {
 	s.idleTimeout = timeout
+}
+
+func (s *Server) SetDataDelim(delim byte) {
+	s.dataDelim = delim
 }
 
 func (s *Server) Clients() map[*Client]struct{} {

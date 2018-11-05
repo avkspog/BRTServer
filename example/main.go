@@ -11,11 +11,12 @@ import (
 var server *brts.Server
 
 func main() {
-	host := "localhost"
+	host := "127.0.0.1"
 	port := "5326"
 
 	server = brts.Create(host + ":" + port)
 	server.SetTimeout(15 * time.Second)
+	server.SetDataDelim('\n')
 
 	server.OnServerStarted(func(addr *net.TCPAddr) {
 		log.Printf("BRTS server started on address: %v", addr.String())
@@ -32,9 +33,6 @@ func main() {
 	server.OnMessageReceive(func(c *brts.Client, data []byte) {
 		mm := string(data)
 		log.Printf("%v message: %v", c.Conn.RemoteAddr(), mm)
-		if mm == "stop" {
-			c.Close()
-		}
 	})
 
 	server.OnConnectionLost(func(c *brts.Client) {
