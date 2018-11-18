@@ -16,13 +16,13 @@ import (
 const defaultTimeout time.Duration = 10 * time.Minute
 
 type Server struct {
-	idleTimeout time.Duration
-	address     string
-	waitGroup   *sync.WaitGroup
-	mu          *sync.Mutex
-	clients     map[*Client]struct{}
-	signalCh    chan os.Signal
-	dataDelim   byte
+	idleTimeout  time.Duration
+	address      string
+	waitGroup    *sync.WaitGroup
+	mu           *sync.Mutex
+	clients      map[*Client]struct{}
+	signalCh     chan os.Signal
+	messageDelim byte
 
 	onServerStarted  func(addr *net.TCPAddr)
 	onServerStopped  func()
@@ -45,13 +45,13 @@ type accepted struct {
 
 func Create(address string) *Server {
 	server := &Server{
-		idleTimeout: defaultTimeout,
-		address:     address,
-		waitGroup:   &sync.WaitGroup{},
-		mu:          &sync.Mutex{},
-		clients:     make(map[*Client]struct{}),
-		signalCh:    make(chan os.Signal),
-		dataDelim:   '\r',
+		idleTimeout:  defaultTimeout,
+		address:      address,
+		waitGroup:    &sync.WaitGroup{},
+		mu:           &sync.Mutex{},
+		clients:      make(map[*Client]struct{}),
+		signalCh:     make(chan os.Signal),
+		messageDelim: '\r',
 
 		onServerStarted:  func(addr *net.TCPAddr) {},
 		onServerStopped:  func() {},
@@ -138,7 +138,7 @@ func (s *Server) listen(c *Client) {
 
 	for {
 		go func(scanCh chan receiveData) {
-			data, err := reader.ReadBytes(s.dataDelim)
+			data, err := reader.ReadBytes(s.messageDelim)
 			if err != nil {
 				if err == io.EOF {
 					c.closeCh <- struct{}{}
@@ -212,8 +212,8 @@ func (s *Server) SetTimeout(timeout time.Duration) {
 	s.idleTimeout = timeout
 }
 
-func (s *Server) SetDataDelim(delim byte) {
-	s.dataDelim = delim
+func (s *Server) SetMessageDelim(delim byte) {
+	s.messageDelim = delim
 }
 
 func (s *Server) Clients() map[*Client]struct{} {

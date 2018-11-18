@@ -12,11 +12,11 @@ var server *brts.Server
 
 func main() {
 	host := "127.0.0.1"
-	port := "5326"
+	port := "8002"
 
 	server = brts.Create(host + ":" + port)
 	server.SetTimeout(15 * time.Second)
-	server.SetDataDelim('\n')
+	server.SetMessageDelim('\n')
 
 	server.OnServerStarted(func(addr *net.TCPAddr) {
 		log.Printf("BRTS server started on address: %v", addr.String())
