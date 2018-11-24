@@ -13,7 +13,10 @@ import (
 	"time"
 )
 
-const defaultTimeout time.Duration = 10 * time.Minute
+const (
+	defaultTimeout      time.Duration = 10 * time.Minute
+	defaultMessageDelim byte          = '\r'
+)
 
 type Server struct {
 	idleTimeout  time.Duration
@@ -51,7 +54,7 @@ func Create(address string) *Server {
 		mu:           &sync.Mutex{},
 		clients:      make(map[*Client]struct{}),
 		signalCh:     make(chan os.Signal),
-		messageDelim: '\r',
+		messageDelim: defaultMessageDelim,
 
 		onServerStarted:  func(addr *net.TCPAddr) {},
 		onServerStopped:  func() {},
