@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	defaultTimeout      time.Duration = 10 * time.Minute
-	defaultMessageDelim byte          = '\r'
+	DefaultTimeout      time.Duration = 10 * time.Minute
+	DefaultMessageDelim byte          = '\r'
 )
 
 type Server struct {
