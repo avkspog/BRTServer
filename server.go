@@ -48,13 +48,13 @@ type accepted struct {
 
 func Create(address string) *Server {
 	server := &Server{
-		idleTimeout:  defaultTimeout,
+		idleTimeout:  DefaultTimeout,
 		address:      address,
 		waitGroup:    &sync.WaitGroup{},
 		mu:           &sync.Mutex{},
 		clients:      make(map[*Client]struct{}),
 		signalCh:     make(chan os.Signal),
-		messageDelim: defaultMessageDelim,
+		messageDelim: DefaultMessageDelim,
 
 		onServerStarted:  func(addr *net.TCPAddr) {},
 		onServerStopped:  func() {},
@@ -180,24 +180,24 @@ func (s *Server) Shutdown() {
 
 func (s *Server) closeConnections() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	for c := range s.clients {
 		if c != nil {
 			c.Close()
 		}
 	}
+	s.mu.Unlock()
 }
 
 func (s *Server) addClient(c *Client) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.clients[c] = struct{}{}
+	s.mu.Unlock()
 }
 
 func (s *Server) removeClient(c *Client) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	delete(s.clients, c)
+	s.mu.Unlock()
 }
 
 func (c *Client) Read(p []byte) (n int, err error) {
